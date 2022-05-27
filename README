@@ -1,0 +1,4 @@
+Multithreading
+OpenCL
+
+	g++ main2.cpp -I"include" -L"lib" -Wall -lSDL2main -lSDL2 -lSDL2_image -o test
