@@ -7,17 +7,23 @@
 #include "sphere.h"
 #include "camera.h"
 #include "material.h"
+#include <unistd.h>
 #include <vector>
 
 #include <csignal>
 #include <iostream>
 #include <thread>
+#include <mutex>
 
-const int MAX_DEPTH = 5;
-const int IMAGE_WIDTH = 400;
+// seems like an abuse of the globals
+const int MAX_DEPTH = 50;
+const int IMAGE_WIDTH = 1200;
 const double ASPECT_RATIO = 3.0 / 2.0;
 const int IMAGE_HEIGHT = static_cast<int>(IMAGE_WIDTH / ASPECT_RATIO);
-const int SAMPELS = 5;
+const int SAMPLES = 1;
+std::mutex draw_lock;
+std::mutex counterlock;
+int tcounter = 0;
 
 
 color ray_color(const ray& r, const hittable& world, int depth) {
@@ -93,22 +99,33 @@ void signal_handler(int signal_num)
     exit(signal_num);
 }
 
-void draw(int start, int end, camera cam, SDL_Renderer *renderer, hittable_list world, bool is_renderer) {
+void draw(int start, int end, camera cam, SDL_Renderer *renderer, hittable_list world) {
     for (int j = start; j < end; j++) {
         for (int i = 0; i < IMAGE_WIDTH; i++) {
             color pixel_color(0, 0, 0);
-            for (int s = 0; s < SAMPELS; ++s) {
+            for (int s = 0; s < SAMPLES; ++s) {
                 auto u = (i + random_double()) / (IMAGE_WIDTH-1);
                 auto v = (j + random_double()) / (IMAGE_HEIGHT-1);
                 ray r = cam.get_ray(u, v);
                 pixel_color += ray_color(r, world, MAX_DEPTH);
             }
-            write_color(renderer, pixel_color, SAMPELS);
+            color calculated = write_color(pixel_color, SAMPLES);
+            draw_lock.lock();
+            SDL_SetRenderDrawColor(renderer, calculated.x(), calculated.y(), calculated.z(), 255);
             SDL_RenderDrawPoint(renderer, i, IMAGE_HEIGHT - j);
+            draw_lock.unlock();
         }
-        if(is_renderer) {
-            SDL_RenderPresent(renderer);
-        }
+    }
+    counterlock.lock();
+    tcounter++;
+    counterlock.unlock();
+}
+
+void render(SDL_Renderer *renderer, const int processor_count) {
+    while(tcounter < processor_count) {
+        std::cout << tcounter << std::endl;
+        sleep(1);
+        SDL_RenderPresent(renderer);
     }
 }
 
@@ -118,6 +135,7 @@ int main() {
     // TODO does not work
     signal(SIGABRT, signal_handler);
     const int processor_count = std::thread::hardware_concurrency() - 2;
+    std::cout << processor_count << std::endl;
     const int loops_per_thread = IMAGE_HEIGHT / processor_count;
     // super not optimal - eats remaining loops
     const int last_thread = IMAGE_HEIGHT - (processor_count * loops_per_thread);
@@ -149,26 +167,32 @@ int main() {
     for (int i = 0; i < 10; i++) {
         int start = 0 ;
         int end = loops_per_thread;
-        bool is_renderer = true;
         if (i > 0) {
             start = loops_per_thread * i;
             end = loops_per_thread * (i + 1);
-            is_renderer = false;
         }
 
-        std::thread t(draw, start, end, cam, renderer, world, is_renderer);
+        std::thread t(draw, start, end, cam, renderer, world);
         tys.push_back(std::move(t));
     }
-    std::thread t(draw, IMAGE_HEIGHT - last_thread, IMAGE_HEIGHT, cam, renderer, world, false);
+    std::thread t(draw, IMAGE_HEIGHT - last_thread, IMAGE_HEIGHT, cam, renderer, world);
+    std::thread render_thread(render, renderer, processor_count);
 
     for (auto &th : tys) {
         th.join();
     }
     t.join();
+    render_thread.join();
 
 
     std::cerr << "\nDone.\n";
-    // SDL_RenderPresent(renderer);
+    SDL_Surface *sshot = SDL_CreateRGBSurface(0, IMAGE_WIDTH, IMAGE_HEIGHT, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
+    SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, sshot->pixels, sshot->pitch);
+    char img_name [100];
+    snprintf(img_name, 100, "./bin/img_render_%d.bmp", SAMPLES);
+    SDL_SaveBMP(sshot, img_name);
+    SDL_FreeSurface(sshot);
+    SDL_RenderPresent(renderer);
     while (1) {
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
