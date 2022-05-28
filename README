@@ -1,4 +1,4 @@
-TODO pixel provider for threads
+Better algorithm to determine how many lines should a thread render
 Load any model
 segmentation when models intersect
 OpenCL

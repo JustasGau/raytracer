@@ -7,9 +7,10 @@
 #include "sphere.h"
 #include "camera.h"
 #include "material.h"
+#include "pixel_provider.h"
+
 #include <unistd.h>
 #include <vector>
-
 #include <csignal>
 #include <iostream>
 #include <thread>
@@ -24,7 +25,7 @@ int SAMPLES = 1;
 std::mutex draw_lock;
 std::mutex counterlock;
 int tcounter = 0;
-
+provider singleton_povider;
 
 color ray_color(const ray& r, const hittable& world, int depth) {
     hit_record rec;
@@ -120,22 +121,26 @@ void signal_handler(int signal_num)
     exit(signal_num);
 }
 
-void draw(int start, int end, camera cam, SDL_Renderer *renderer, hittable_list world) {
-    for (int j = start; j < end; j++) {
-        for (int i = 0; i < IMAGE_WIDTH; i++) {
-            color pixel_color(0, 0, 0);
-            for (int s = 0; s < SAMPLES; ++s) {
-                auto u = (i + random_double()) / (IMAGE_WIDTH-1);
-                auto v = (j + random_double()) / (IMAGE_HEIGHT-1);
-                ray r = cam.get_ray(u, v);
-                pixel_color += ray_color(r, world, MAX_DEPTH);
+void draw(camera cam, SDL_Renderer *renderer, hittable_list world) {
+    render_package pak = singleton_povider.get_package();
+    while (!pak.finished) {
+        for (int j = pak.height_start; j < pak.height_finish; j++) {
+            for (int i = pak.width_start; i < pak.width_finish; i++) {
+                color pixel_color(0, 0, 0);
+                for (int s = 0; s < SAMPLES; ++s) {
+                    auto u = (i + random_double()) / (IMAGE_WIDTH-1);
+                    auto v = (j + random_double()) / (IMAGE_HEIGHT-1);
+                    ray r = cam.get_ray(u, v);
+                    pixel_color += ray_color(r, world, MAX_DEPTH);
+                }
+                color calculated = write_color(pixel_color, SAMPLES);
+                draw_lock.lock();
+                SDL_SetRenderDrawColor(renderer, calculated.x(), calculated.y(), calculated.z(), 255);
+                SDL_RenderDrawPoint(renderer, i, IMAGE_HEIGHT - j);
+                draw_lock.unlock();
             }
-            color calculated = write_color(pixel_color, SAMPLES);
-            draw_lock.lock();
-            SDL_SetRenderDrawColor(renderer, calculated.x(), calculated.y(), calculated.z(), 255);
-            SDL_RenderDrawPoint(renderer, i, IMAGE_HEIGHT - j);
-            draw_lock.unlock();
         }
+        pak = singleton_povider.get_package();
     }
     counterlock.lock();
     tcounter++;
@@ -144,7 +149,7 @@ void draw(int start, int end, camera cam, SDL_Renderer *renderer, hittable_list 
 
 void render(SDL_Renderer *renderer, const int processor_count) {
     while(tcounter < processor_count) {
-        std::cout << tcounter << std::endl;
+        std::cout << "Finished threads: " << tcounter << "\n";
         sleep(1);
         SDL_RenderPresent(renderer);
     }
@@ -181,10 +186,10 @@ int main(int argc, char *argv[]) {
     // TODO does not work
     signal(SIGABRT, signal_handler);
     const int processor_count = std::thread::hardware_concurrency() - 2;
-    std::cout << processor_count << std::endl;
-    const int loops_per_thread = IMAGE_HEIGHT / processor_count;
-    // super not optimal - eats remaining loops
-    const int last_thread = IMAGE_HEIGHT - (processor_count * loops_per_thread);
+    // FIXME bad
+    singleton_povider.threads = processor_count;
+    singleton_povider.h_end = IMAGE_HEIGHT;
+    singleton_povider.w_end = IMAGE_WIDTH;
 
     std::vector<std::thread> tys;
 
@@ -223,24 +228,17 @@ int main(int argc, char *argv[]) {
 
     // Render
 
-    for (int i = 0; i < 10; i++) {
-        int start = 0 ;
-        int end = loops_per_thread;
-        if (i > 0) {
-            start = loops_per_thread * i;
-            end = loops_per_thread * (i + 1);
-        }
-
-        std::thread t(draw, start, end, cam, renderer, world);
+    for (int i = 0; i < processor_count; i++) {
+        std::thread t(draw, cam, renderer, world);
         tys.push_back(std::move(t));
     }
-    std::thread t(draw, IMAGE_HEIGHT - last_thread, IMAGE_HEIGHT, cam, renderer, world);
+
     std::thread render_thread(render, renderer, processor_count);
 
     for (auto &th : tys) {
         th.join();
     }
-    t.join();
+
     render_thread.join();
 
 
