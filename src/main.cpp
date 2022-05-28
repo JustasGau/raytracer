@@ -16,11 +16,11 @@
 #include <mutex>
 
 // seems like an abuse of the globals
-const int MAX_DEPTH = 50;
-const int IMAGE_WIDTH = 1200;
+int MAX_DEPTH = 1;
+int IMAGE_WIDTH = 400;
 const double ASPECT_RATIO = 3.0 / 2.0;
-const int IMAGE_HEIGHT = static_cast<int>(IMAGE_WIDTH / ASPECT_RATIO);
-const int SAMPLES = 1;
+int IMAGE_HEIGHT = static_cast<int>(IMAGE_WIDTH / ASPECT_RATIO);
+int SAMPLES = 1;
 std::mutex draw_lock;
 std::mutex counterlock;
 int tcounter = 0;
@@ -128,9 +128,34 @@ void render(SDL_Renderer *renderer, const int processor_count) {
         SDL_RenderPresent(renderer);
     }
 }
+void check_parameter(int val) {
+    if (val == 0) {
+        std::cout << "Argument must be a valid number \n";
+        exit(1);
+    }
+}
 
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    if (argc < 4 ) {
+        std::cout << "Please provide: scene width samples depth \n";
+        return EXIT_FAILURE;
+    }
+    const int scene = std::strtol(argv[1], nullptr, 10);
+    check_parameter(scene);
+
+    IMAGE_WIDTH = std::strtol(argv[2], nullptr, 10);
+    check_parameter(IMAGE_WIDTH);
+
+    SAMPLES = std::strtol(argv[3], nullptr, 10);
+    check_parameter(SAMPLES);
+
+    MAX_DEPTH = std::strtol(argv[4], nullptr, 10);
+    check_parameter(MAX_DEPTH);
+
+    IMAGE_HEIGHT = static_cast<int>(IMAGE_WIDTH / ASPECT_RATIO);
+
     // Image
     // TODO does not work
     signal(SIGABRT, signal_handler);
@@ -189,7 +214,7 @@ int main() {
     SDL_Surface *sshot = SDL_CreateRGBSurface(0, IMAGE_WIDTH, IMAGE_HEIGHT, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
     SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, sshot->pixels, sshot->pitch);
     char img_name [100];
-    snprintf(img_name, 100, "./bin/img_render_%d.bmp", SAMPLES);
+    snprintf(img_name, 100, "./bin/sc%d_w%d_s%d_d%d.bmp",scene, IMAGE_WIDTH, SAMPLES, MAX_DEPTH);
     SDL_SaveBMP(sshot, img_name);
     SDL_FreeSurface(sshot);
     SDL_RenderPresent(renderer);
