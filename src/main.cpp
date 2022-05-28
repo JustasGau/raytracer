@@ -90,6 +90,27 @@ hittable_list random_scene() {
     return world;
 }
 
+hittable_list simple_scene() {
+    hittable_list world;
+
+    auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));
+    world.add(make_shared<sphere>(point3(0,-1000,0), 1000, ground_material));
+
+    auto material1 = make_shared<dielectric>(1.5);
+    // left
+    world.add(make_shared<sphere>(point3(5, 1, 3), 1.0, material1));
+
+    auto material2 = make_shared<metal>(color(0.4, 0.2, 0.1), 0.0);
+    // center
+    world.add(make_shared<sphere>(point3(5, 1, 1), 1.0, material2));
+
+    auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);
+    // right
+    world.add(make_shared<sphere>(point3(5, 1, -1), 1.0, material3));
+
+    return world;
+}
+
 void signal_handler(int signal_num)
 {
     std::cerr << "The interrupt signal is (" << signal_num
@@ -176,7 +197,20 @@ int main(int argc, char *argv[]) {
     SDL_RenderClear(renderer);
 
     // World
-    auto world = random_scene();
+    hittable_list world;
+
+    switch (scene)
+    {
+    case 1:
+        world = random_scene();
+        break;
+    case 2:
+        world = simple_scene();
+        break;
+    default:
+        world = random_scene();
+        break;
+    }
 
     // Camera
     point3 lookfrom(13,2,3);
