@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
     SDL_Surface *sshot = SDL_CreateRGBSurface(0, IMAGE_WIDTH, IMAGE_HEIGHT, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
     SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, sshot->pixels, sshot->pitch);
     char img_name [100];
-    snprintf(img_name, 100, "./bin/sc%d_w%d_s%d_d%d.bmp",scene, IMAGE_WIDTH, SAMPLES, MAX_DEPTH);
+    snprintf(img_name, 100, "./images/sc%d_w%d_s%d_d%d.bmp",scene, IMAGE_WIDTH, SAMPLES, MAX_DEPTH);
     SDL_SaveBMP(sshot, img_name);
     SDL_FreeSurface(sshot);
     SDL_RenderPresent(renderer);

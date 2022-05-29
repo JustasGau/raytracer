@@ -46,8 +46,6 @@ render_package provider::calc_pixels() {
     h_end -= amount_h;
     const int end = h_start + amount_h;
     render_package pac = {finished, start, end ,w_start, w_end};
-    std::cout << pac.height_start << ":" << pac.height_finish << "\n";
-    std::cout << pac.height_finish - pac.height_start << "\n";
     return pac;
 }
 
