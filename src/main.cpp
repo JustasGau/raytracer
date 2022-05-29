@@ -107,7 +107,7 @@ hittable_list simple_scene() {
 
     auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);
     // right
-    world.add(make_shared<sphere>(point3(5, 1, -1), 1.0, material3));
+    world.add(make_shared<sphere>(point3(5, 1, -1.1), 1.0, material3));
 
     return world;
 }
@@ -154,13 +154,13 @@ void render(SDL_Renderer *renderer, const int processor_count) {
         SDL_RenderPresent(renderer);
     }
 }
+
 void check_parameter(int val) {
     if (val == 0) {
         std::cout << "Argument must be a valid number \n";
         exit(1);
     }
 }
-
 
 int main(int argc, char *argv[]) {
 
@@ -183,8 +183,7 @@ int main(int argc, char *argv[]) {
     IMAGE_HEIGHT = static_cast<int>(IMAGE_WIDTH / ASPECT_RATIO);
 
     // Image
-    // TODO does not work
-    signal(SIGABRT, signal_handler);
+    signal(SIGINT, signal_handler);
     const int processor_count = std::thread::hardware_concurrency() - 2;
     // FIXME bad
     singleton_povider.threads = processor_count;

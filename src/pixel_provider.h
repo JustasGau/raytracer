@@ -34,8 +34,8 @@ class provider {
 
 render_package provider::calc_pixels() {
     if (h_end <= 0) return render_package{true, 0, 0 ,0, 0};
-    // int amount_h = static_cast<int>((h_end / threads) / 1.1);
-    int amount_h = 20;
+    int amount_h = static_cast<int>(h_end / threads);
+    // int amount_h = 20;
     bool finished = false;
     // if there are lines to render but the calculation for distribution returns less than 1 line
     // the amount is capped at one line
