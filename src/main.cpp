@@ -9,6 +9,7 @@
 #include "material.h"
 #include "pixel_provider.h"
 #include "moving_sphere.h"
+#include "aarect.h"
 
 #include <unistd.h>
 #include <vector>
@@ -27,23 +28,27 @@ std::mutex draw_lock;
 std::mutex counterlock;
 int tcounter = 0;
 provider singleton_povider;
+color background(0,0,0);
 
-color ray_color(const ray& r, const hittable& world, int depth) {
+color ray_color(const ray& r, const color& background, const hittable& world, int depth) {
     hit_record rec;
+
     // If we've exceeded the ray bounce limit, no more light is gathered.
     if (depth <= 0)
         return color(0,0,0);
 
-    if (world.hit(r, 0.001, infinity, rec)) {
-        ray scattered;
-        color attenuation;
-        if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))
-            return attenuation * ray_color(scattered, world, depth-1);
-        return color(0,0,0);
-    }
-    vec3 unit_direction = unit_vector(r.direction());
-    auto t = 0.5*(unit_direction.y() + 1.0);
-    return (1.0-t)*color(1.0, 1.0, 1.0) + t*color(0.5, 0.7, 1.0);
+    // If the ray hits nothing, return the background color.
+    if (!world.hit(r, 0.001, infinity, rec))
+        return background;
+
+    ray scattered;
+    color attenuation;
+    color emitted = rec.mat_ptr->emitted(rec.u, rec.v, rec.p);
+
+    if (!rec.mat_ptr->scatter(r, rec, attenuation, scattered))
+        return emitted;
+
+    return emitted + attenuation * ray_color(scattered, background, world, depth-1);
 }
 
 hittable_list random_scene() {
@@ -133,6 +138,37 @@ hittable_list earth() {
     return hittable_list(globe);
 }
 
+hittable_list simple_light() {
+    hittable_list objects;
+
+    auto pertext = make_shared<noise_texture>(4);
+    objects.add(make_shared<sphere>(point3(0,-1000,0), 1000, make_shared<lambertian>(pertext)));
+    objects.add(make_shared<sphere>(point3(0,2,0), 2, make_shared<lambertian>(pertext)));
+
+    auto difflight = make_shared<diffuse_light>(color(4,4,4));
+    objects.add(make_shared<xy_rect>(3, 5, 1, 3, -2, difflight));
+
+    return objects;
+}
+
+hittable_list cornell_box() {
+    hittable_list objects;
+
+    auto red   = make_shared<lambertian>(color(.65, .05, .05));
+    auto white = make_shared<lambertian>(color(.73, .73, .73));
+    auto green = make_shared<lambertian>(color(.12, .45, .15));
+    auto light = make_shared<diffuse_light>(color(15, 15, 15));
+
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 555, green));
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 0, red));
+    objects.add(make_shared<xz_rect>(213, 343, 227, 332, 554, light));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 0, white));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 555, white));
+    objects.add(make_shared<xy_rect>(0, 555, 0, 555, 555, white));
+
+    return objects;
+}
+
 void signal_handler(int signal_num)
 {
     std::cerr << "The interrupt signal is (" << signal_num
@@ -152,7 +188,7 @@ void draw(camera cam, SDL_Renderer *renderer, hittable_list world) {
                     auto u = (i + random_double()) / (IMAGE_WIDTH-1);
                     auto v = (j + random_double()) / (IMAGE_HEIGHT-1);
                     ray r = cam.get_ray(u, v);
-                    pixel_color += ray_color(r, world, MAX_DEPTH);
+                    pixel_color += ray_color(r, background, world, MAX_DEPTH);
                 }
                 color calculated = write_color(pixel_color, SAMPLES);
                 draw_lock.lock();
@@ -233,6 +269,7 @@ int main(int argc, char *argv[]) {
     case 1:
         world = random_scene();
         lookfrom = point3(13,2,3);
+        background = color(0.70, 0.80, 1.00);
         lookat = point3(0,0,0);
         vfov = 20.0;
         aperture = 0.1;
@@ -240,6 +277,7 @@ int main(int argc, char *argv[]) {
     case 2:
         world = simple_scene();
         lookfrom = point3(13,2,3);
+        background = color(0.70, 0.80, 1.00);
         lookat = point3(0,0,0);
         vfov = 20.0;
         aperture = 0.1;
@@ -247,20 +285,34 @@ int main(int argc, char *argv[]) {
     case 3:
         world = two_perlin_spheres();
         lookfrom = point3(13,2,3);
+        background = color(0.70, 0.80, 1.00);
         lookat = point3(0,0,0);
         vfov = 20.0;
         break;
     case 4:
         world = earth();
         lookfrom = point3(13,2,3);
+        background = color(0.70, 0.80, 1.00);
         lookat = point3(0,0,0);
         vfov = 20.0;
         break;
-    default:
-        world = two_perlin_spheres();
-        lookfrom = point3(13,2,3);
-        lookat = point3(0,0,0);
+    case 5:
+        world = simple_light();
+        background = color(0,0,0);
+        lookfrom = point3(26,3,6);
+        lookat = point3(0,2,0);
         vfov = 20.0;
+        break;
+    case 6:
+        world = cornell_box();
+        background = color(0,0,0);
+        lookfrom = point3(278, 278, -800);
+        lookat = point3(278, 278, 0);
+        vfov = 40.0;
+        break;
+    default:
+        background = color(0.0, 0.0, 0.0);
+        world = earth();
         break;
     }
 
