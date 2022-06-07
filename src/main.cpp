@@ -115,6 +115,16 @@ hittable_list simple_scene() {
     return world;
 }
 
+hittable_list two_perlin_spheres() {
+    hittable_list objects;
+
+    auto pertext = make_shared<noise_texture>(4);
+    objects.add(make_shared<sphere>(point3(0,-1000,0), 1000, make_shared<lambertian>(pertext)));
+    objects.add(make_shared<sphere>(point3(0, 2, 0), 2, make_shared<lambertian>(pertext)));
+
+    return objects;
+}
+
 void signal_handler(int signal_num)
 {
     std::cerr << "The interrupt signal is (" << signal_num
@@ -205,28 +215,46 @@ int main(int argc, char *argv[]) {
 
     // World
     hittable_list world;
+    auto vfov = 40.0;
+    auto aperture = 0.0;
+    point3 lookfrom;
+    point3 lookat;
 
     switch (scene)
     {
     case 1:
         world = random_scene();
+        lookfrom = point3(13,2,3);
+        lookat = point3(0,0,0);
+        vfov = 20.0;
+        aperture = 0.1;
         break;
     case 2:
         world = simple_scene();
+        lookfrom = point3(13,2,3);
+        lookat = point3(0,0,0);
+        vfov = 20.0;
+        aperture = 0.1;
+        break;
+    case 3:
+        world = two_perlin_spheres();
+        lookfrom = point3(13,2,3);
+        lookat = point3(0,0,0);
+        vfov = 20.0;
         break;
     default:
-        world = random_scene();
+        world = two_perlin_spheres();
+        lookfrom = point3(13,2,3);
+        lookat = point3(0,0,0);
+        vfov = 20.0;
         break;
     }
 
     // Camera
-    point3 lookfrom(13,2,3);
-    point3 lookat(0,0,0);
     vec3 vup(0,1,0);
     auto dist_to_focus = 10.0;
-    auto aperture = 0.1;
 
-    camera cam(lookfrom, lookat, vup, 20, ASPECT_RATIO, aperture, dist_to_focus, 0.0, 1.0);
+    camera cam(lookfrom, lookat, vup, vfov, ASPECT_RATIO, aperture, dist_to_focus, 0.0, 1.0);
 
     // Render
 
